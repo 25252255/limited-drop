@@ -56,7 +56,7 @@ public class ProductService {
             );
         }
         /*
-        //장애 전파에 대비 x
+        //장애 전파에 대비 x: 빈 데이터
         MemberResponseDto memberResponseDto = memberClient.fetchMember(product.getMemberId());
 
         SellerDto sellerDto = new SellerDto(

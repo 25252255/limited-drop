@@ -12,6 +12,24 @@ spring:
       ddl-auto: update
     show-sql: true
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        #sliding window: ?? n? ??, n?? ????? ?? ??? ?? ??
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 2
+        #fail: n%?? ???? oepn
+        failureRateThreshold: 50
+        #delay: open?? n?? ??
+        waitDurationInOpenState: 3000ms
+        #half open: n?? ?? n?? ??
+        permittedNumberOfCallsInHalfOpenState: 3
+        #? ?? ?????? closed
+    instances:
+      getProductActivity:
+        baseConfig: default
+
 client:
   memberservice:
     url: http://localhost:8080

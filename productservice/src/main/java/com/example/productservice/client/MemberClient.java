@@ -1,10 +1,13 @@
 package com.example.productservice.client;
 
 import com.example.productservice.dto.MemberResponseDto;
+import com.example.productservice.dto.ProductResponseDto;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -26,20 +29,24 @@ public class MemberClient {
     }
 
     /*사용자 정보 조회 요청*/
+
+    //장애 전파에 Resilience4j로 대비
+    @CircuitBreaker(name = "getProductActivity", fallbackMethod = "fallbackGetProductActivity")
     public Optional<MemberResponseDto> fetchMember(Long memberId){
-        try{
-            MemberResponseDto memberResponseDto = this.restClient.get()
-                    .uri("/members/{memberId}", memberId)
-                    .retrieve()
-                    .body(MemberResponseDto.class);
-            return Optional.ofNullable(memberResponseDto);
-        }catch (RestClientException e) {
-            log.error("product_사용자 정보 조회 실패");
-            return Optional.empty();
-        }
+        MemberResponseDto memberResponseDto = this.restClient.get()
+                .uri("/members/{memberId}", memberId)
+                .retrieve()
+                .body(MemberResponseDto.class);
+        return Optional.ofNullable(memberResponseDto);
     }
 
-    //장애 전파에 null로 대비
+    private Optional<MemberResponseDto> fallbackGetProductActivity(Long memberId, Throwable throwable){
+        //리턴 타입, 파라미터 똑같이 맞추기
+        //log.error("***log***"+throwable.getMessage());
+        return Optional.empty();
+    }
+
+    //장애 전파에 try-catch로 대비
     public List<MemberResponseDto> fetchMembersByIds(List<Long> ids){
         try {
             return this.restClient.get()
@@ -53,6 +60,7 @@ public class MemberClient {
             return Collections.emptyList();
         }
     }
+
     /*
     //장애 전파에 대비 x
     public MemberResponseDto fetchMember(Long memberId){
