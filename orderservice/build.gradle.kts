@@ -30,6 +30,8 @@ dependencies {
 	testCompileOnly("org.projectlombok:lombok")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
+	/*implementation("org.springframework.boot:spring-boot-starter-data-redis") 동기 방식*/
+	implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
 }
 
 tasks.withType<Test> {
