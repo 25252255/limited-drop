@@ -52,6 +52,14 @@ public class MemberQueueService {
 
     //입장 허용된 상태인지 확인
     public Mono<Boolean> isAllowed(String memberId){
-        return reactiveRedisTemplate.hasKey("allow:" + memberId);
+        return reactiveRedisTemplate.hasKey("allow:" + memberId)
+                .defaultIfEmpty(false);
     }
+
+    //권한(입장 허용) 키 삭제
+    public Mono<Boolean> deleteAllowKey(String memberId) {
+        return reactiveRedisTemplate.delete("allow:" + memberId)
+                .map(count -> count > 0);   //1개 이상 삭제되었으면 true
+    }
+
 }

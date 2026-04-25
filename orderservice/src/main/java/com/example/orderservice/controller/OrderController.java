@@ -1,6 +1,7 @@
 package com.example.orderservice.controller;
 
 import com.example.orderservice.dto.RegisterMemberResponseDto;
+import com.example.orderservice.service.OrderService;
 import com.example.orderservice.service.MemberQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import java.time.Duration;
 @RequestMapping("/orders")
 public class OrderController {
     private final MemberQueueService memberQueueService;
+    private final OrderService orderService;
 
     //진입 요청
     @PostMapping("/queue")
@@ -51,9 +53,31 @@ public class OrderController {
                                             //event:pass
                                             //data:1    형태로 출력
                 //스트림 종료
-                .takeUntil(sse -> sse.data() != null && sse.data() <= 0L)   //대기열 이탈인지 순번 기다렸는지 검증 필요
+                .takeUntil(sse -> sse.data() != null && sse.data() <= 0L)   //대기열 이탈인지 순번 기다렸는지 권한 검증 필요
                 //.doOnTerminate(() -> log.debug("--- SSE 연결 종료 ---"))
                 .doOnError(e -> log.error("passMember Error: {},{}", memberId, e.getMessage()));
+    }
+
+    //상품 주문
+    //HACK : 삼품 정보 캐싱 필요
+    @PostMapping("/order")
+    public Mono<String> order(@RequestParam String memberId, @RequestParam Long productId, @RequestParam int quantity){
+        return
+                //권한 검증
+                memberQueueService.isAllowed(memberId)
+                .flatMap(allowed -> {
+                    if (!allowed) return Mono.error(new RuntimeException("권한이 없습니다."));
+
+                    //주문 호출
+                    return orderService.createOrder(memberId, productId, quantity);
+                })
+                //권한 삭제
+                .flatMap(result -> memberQueueService.deleteAllowKey(memberId))
+                .map(isSuccess -> {
+                    log.info("주문 성공>> 회원 {}가 상품 {}을(를) {}개 주문했습니다.", memberId, productId, quantity);
+                    return "주문 성공"+isSuccess;
+                })
+                .doOnError(e -> log.error("order Error: {},{}", memberId, e.getMessage()));
     }
 
     /*
