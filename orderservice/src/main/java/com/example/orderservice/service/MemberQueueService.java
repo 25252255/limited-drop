@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import org.springframework.data.redis.core.script.RedisScript;
+import java.util.List;
 
 import java.time.Instant;
 
@@ -32,6 +34,24 @@ public class MemberQueueService {
     }
 
     //대기열에서 특정 수만큼 인원 pop해서 입장 허용 목록으로 이동
+    public Mono<Long> popMember(long count) {
+        String luaScript = "local members = redis.call('zrange', KEYS[1], 0, tonumber(ARGV[1]) - 1) "
+                + "for _, memberId in ipairs(members) do "
+                + "redis.call('zrem', KEYS[1], memberId) "
+                + "redis.call('setex', 'allow:' .. memberId, tonumber(ARGV[2]), 'true') "
+                + "end "
+                + "return #members";
+
+        return reactiveRedisTemplate
+                .execute(
+                        RedisScript.of(luaScript, Long.class),
+                        List.of(QUEUE_KEY),
+                        List.of(String.valueOf(count), "300")
+                )
+                .next()
+                .defaultIfEmpty(0L);
+    }
+    /*Redis 버전 7 이상
     public Mono<Long> popMember(long count){
         return reactiveRedisTemplate
                 .opsForZSet()
@@ -48,7 +68,7 @@ public class MemberQueueService {
                             //내장 TTL vs 작업 없는 거 시간 체크해서 튕겨내기
                 })
                 .count();
-    }
+    }*/
 
     //입장 허용된 상태인지 확인
     public Mono<Boolean> isAllowed(String memberId){

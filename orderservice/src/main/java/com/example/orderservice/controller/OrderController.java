@@ -10,6 +10,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import com.example.orderservice.dto.OrderResponseDto;
 
 import java.time.Duration;
 
@@ -59,7 +60,7 @@ public class OrderController {
     }
 
     //상품 주문
-    //HACK : 삼품 정보 캐싱 필요
+    /*//HACK : 삼품 정보 캐싱 필요
     @PostMapping("/order")
     public Mono<String> order(@RequestParam String memberId, @RequestParam Long productId, @RequestParam int quantity){
         return
@@ -78,6 +79,48 @@ public class OrderController {
                     return "주문 성공"+isSuccess;
                 })
                 .doOnError(e -> log.error("order Error: {},{}", memberId, e.getMessage()));
+    }*/
+
+    //요청 파라미터가 아니라 HTTP 헤더에서 멱등성 키를 받음.Postman에서는 Headers에 ex)Idempotency-Key: order-member2-product1-001
+    @PostMapping("/order")
+    public Mono<OrderResponseDto> order(@RequestHeader("Idempotency-Key") String idempotencyKey, @RequestParam Long memberId, @RequestParam Long productId, @RequestParam int quantity) {
+        String redisMemberId = String.valueOf(memberId);
+
+        return orderService.getOrderByIdempotencyKey(idempotencyKey)    ///OrderResponseDto / Mono.empty()
+                .switchIfEmpty(Mono.defer(() ->
+                        memberQueueService.isAllowed(redisMemberId)
+                                .flatMap(allowed -> {
+                                    if (!allowed) {
+                                        return Mono.error(new RuntimeException("권한이 없습니다."));
+                                    }
+
+                                    return orderService.createOrder(
+                                                    idempotencyKey,
+                                                    memberId,
+                                                    productId,
+                                                    quantity
+                                            )
+                                            .flatMap(orderResponse ->
+                                                    memberQueueService.deleteAllowKey(redisMemberId)
+                                                            .thenReturn(orderResponse)  //입장 권한 삭제 완료 결과 대신에 orderResponse DTO반환
+                                            );
+                                })
+                ))
+                //기존 주문 있음
+                //대기열 입장 권한 다시 검사x
+                //TODO : 본인 확인(기존 주문이 이 사용자의 주문인지 JWT나 세션에서 꺼낸 회원 ID와 비교)
+                .doOnSuccess(orderResponse ->
+                        log.info(
+                                "주문 처리 결과>> 주문: {}, 회원: {}, 상품: {}, 상태: {}",
+                                orderResponse.orderId(),
+                                orderResponse.memberId(),
+                                orderResponse.productId(),
+                                orderResponse.orderStatus()
+                        )
+                )
+                .doOnError(error ->
+                        log.error("order Error: {}, {}", memberId, error.getMessage())
+                );
     }
 
     /*
