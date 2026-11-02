@@ -80,7 +80,7 @@ public class ProductService {
 
         //필요한 사용자 정보(memberIds) 목록 추출
         List<Long> memberIds = products.stream()
-                .map(Product::getProductId)
+                .map(Product::getMemberId)
                 .distinct()
                 .toList();
 
